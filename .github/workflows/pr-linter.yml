@@ -1,6 +1,6 @@
 # *******************************************************************************
 # Copyright 2024-2026 Arm Limited and affiliates.
-# Copyright 2024-2026 Intel Corporation
+# Copyright 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -118,8 +118,8 @@ jobs:
           config: ".github/.licenserc.yml"
           mode: "check"
 
-  other-lint:
-    name: Other linters
+  pr-python-linter:
+    name: Python linter
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Code
