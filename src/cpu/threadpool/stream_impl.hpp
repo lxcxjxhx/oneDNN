@@ -14,75 +14,64 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_CPU_STREAM_IMPL_HPP
-#define CPU_CPU_STREAM_IMPL_HPP
+#ifndef CPU_THREADPOOL_STREAM_IMPL_HPP
+#define CPU_THREADPOOL_STREAM_IMPL_HPP
 
-#include "common/stream_impl.hpp"
 #include "oneapi/dnnl/dnnl_threadpool_iface.hpp"
 
 #include "common/c_types_map.hpp"
+#include "common/stream_impl.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace threadpool {
 
-// CPU-specific stream implementation extending the common stream_impl_t.
-// Adds threadpool handle storage and verbose profiler initialization
-// for the threadpool runtime.
 class stream_impl_t : public impl::stream_impl_t {
 public:
     stream_impl_t() = delete;
     stream_impl_t(unsigned flags) : impl::stream_impl_t(flags) {}
-
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
     stream_impl_t(threadpool_interop::threadpool_iface *threadpool)
         : impl::stream_impl_t(stream_flags::in_order)
         , threadpool_(threadpool) {}
-#endif
 
     ~stream_impl_t() override = default;
 
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    bool is_syncable() const override {
-        if (!threadpool_) return true;
-        return !(threadpool_->get_flags()
-                & threadpool_interop::threadpool_iface::ASYNCHRONOUS);
+    threadpool_interop::threadpool_iface *threadpool() const {
+        return threadpool_;
     }
 
-    // Checks and initializes profiler for supported runtime configs
+    bool is_async() const {
+        return threadpool_
+                && (threadpool_->get_flags()
+                        & threadpool_interop::threadpool_iface::ASYNCHRONOUS);
+    }
+
+    bool is_syncable() const override { return !is_async(); }
+
     status_t init_verbose_profiler(engine_kind_t engine_kind) override {
         use_verbose_profiler_ = false;
 
-        // The checks are only relevant for a CPU engine
         if (engine_kind != engine_kind::cpu) return status::success;
 
-        if (!dnnl::impl::get_verbose(dnnl::impl::verbose_t::exec_profile))
-            return status::success;
+        if (!get_verbose(verbose_t::exec_profile)) return status::success;
 
-        // CPU stream must be backed by an async threadpool to support
-        // profiling
-        if (!is_syncable()) return status::success;
+        // Profiling relies on events from an asynchronous threadpool.
+        if (!is_async()) return status::success;
 
         use_verbose_profiler_ = true;
         return status::success;
     }
 
-    status_t get_threadpool(
-            threadpool_interop::threadpool_iface **threadpool) const {
-        *threadpool = threadpool_;
-        return status::success;
-    }
-#endif
-
 private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(stream_impl_t)
-#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+
     threadpool_interop::threadpool_iface *threadpool_ = nullptr;
-#endif
 };
 
+} // namespace threadpool
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl

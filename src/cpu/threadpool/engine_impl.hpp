@@ -14,33 +14,38 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_CPU_ENGINE_IMPL_HPP
-#define CPU_CPU_ENGINE_IMPL_HPP
+#ifndef CPU_THREADPOOL_ENGINE_IMPL_HPP
+#define CPU_THREADPOOL_ENGINE_IMPL_HPP
 
 #include "common/engine_impl.hpp"
-#include "cpu/cpu_stream_impl.hpp"
+
+#include "cpu/threadpool/stream_impl.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
+namespace threadpool {
 
-// CPU-specific engine implementation subclass. Overrides create_stream_impl()
-// to ensure all CPU streams are backed by cpu::stream_impl_t rather than the
-// base impl::stream_impl_t, making the downcast in cpu_stream_t::impl() safe.
-struct engine_impl_t : public impl::engine_impl_t {
-    engine_impl_t(engine_kind_t kind, runtime_kind_t runtime_kind, size_t index)
-        : impl::engine_impl_t(kind, runtime_kind, index) {}
+// Ensures streams created through dnnl_stream_create() are also backed by
+// threadpool::stream_impl_t.
+class engine_impl_t : public impl::engine_impl_t {
+public:
+    engine_impl_t(size_t index)
+        : impl::engine_impl_t(
+                  engine_kind::cpu, runtime_kind::threadpool, index) {}
 
     ~engine_impl_t() override = default;
 
     status_t create_stream_impl(
             impl::stream_impl_t **stream_impl, unsigned flags) const override {
-        *stream_impl = new cpu::stream_impl_t(flags);
-        if (!*stream_impl) return status::out_of_memory;
+        auto *si = new threadpool::stream_impl_t(flags);
+        if (!si) return status::out_of_memory;
+        *stream_impl = si;
         return status::success;
     }
 };
 
+} // namespace threadpool
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
